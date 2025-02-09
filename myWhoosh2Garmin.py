@@ -317,7 +317,7 @@ def append_value(values: List[int], message: object, field_name: str) -> None:
     values.append(value if value else 0)
 
 
-def reset_values() -> tuple[List[int], List[int], List[int]]:
+def reset_values() -> tuple[List[int], List[int], List[int], List[int]]:
     """
     Resets and returns three empty lists for cadence, power 
     and heart rate values.
@@ -326,7 +326,7 @@ def reset_values() -> tuple[List[int], List[int], List[int]]:
         tuple: A tuple containing three empty lists 
         (cadence, power, and heart rate).
     """
-    return  [], [], []
+    return  [], [], [], []
 
 
 def cleanup_fit_file(fit_file_path: Path, new_file_path: Path) -> None:
@@ -343,12 +343,21 @@ def cleanup_fit_file(fit_file_path: Path, new_file_path: Path) -> None:
     """
     builder = FitFileBuilder()
     fit_file = FitFile.from_file(str(fit_file_path))
-    cadence_values, power_values, heart_rate_values = reset_values()
+    lap_values, cadence_values, power_values, heart_rate_values = reset_values()
 
     for record in fit_file.records:
         message = record.message
-        if isinstance(message, (LapMessage)):
-            continue
+        if isinstance(message, LapMessage):
+            append_value(lap_values, message, "start_time")
+            append_value(lap_values, message, "total_elapsed_time")
+            append_value(lap_values, message, "total_distance")
+            append_value(lap_values, message, "avg_speed")
+            append_value(lap_values, message, "max_speed")
+            append_value(lap_values, message, "avg_heart_rate")
+            append_value(lap_values, message, "max_heart_rate")
+            append_value(lap_values, message, "avg_cadence")
+            append_value(lap_values, message, "max_cadence")
+            append_value(lap_values, message, "total_calories")
         if isinstance(message, RecordMessage):
             message.remove_field(RecordTemperatureField.ID)
             append_value(cadence_values, message, "cadence")
@@ -361,7 +370,7 @@ def cleanup_fit_file(fit_file_path: Path, new_file_path: Path) -> None:
                 message.avg_power = calculate_avg(power_values)
             if not message.avg_heart_rate:
                 message.avg_heart_rate = calculate_avg(heart_rate_values)
-            cadence_values, power_values, heart_rate_values = reset_values()
+            lap_values, cadence_values, power_values, heart_rate_values = reset_values()
         builder.add(message)
     builder.build().to_file(str(new_file_path))
     logger.info(f"Cleaned-up file saved as {SCRIPT_DIR}/{new_file_path.name}")
