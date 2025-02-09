@@ -347,8 +347,17 @@ def cleanup_fit_file(fit_file_path: Path, new_file_path: Path) -> None:
 
     for record in fit_file.records:
         message = record.message
-        if isinstance(message, (LapMessage)):
-            continue
+        if isinstance(message, LapMessage):
+            append_value(cadence_values, message, "start_time")
+            append_value(cadence_values, message, "total_elapsed_time")
+            append_value(cadence_values, message, "total_distance")
+            append_value(cadence_values, message, "avg_speed")
+            append_value(cadence_values, message, "max_speed")
+            append_value(cadence_values, message, "avg_heart_rate")
+            append_value(cadence_values, message, "max_heart_rate")
+            append_value(cadence_values, message, "avg_cadence")
+            append_value(cadence_values, message, "max_cadence")
+            append_value(cadence_values, message, "total_calories")
         if isinstance(message, RecordMessage):
             message.remove_field(RecordTemperatureField.ID)
             append_value(cadence_values, message, "cadence")
