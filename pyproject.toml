@@ -1,0 +1,47 @@
+[project]
+name = "mywhoosh2garmin"
+version = "0.1.0"
+description = "Upload MyWhoosh activities to Garmin Connect with proper fixes"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "pydantic-settings==2.11.0",
+    "pydantic==2.12.4",
+    "garth==0.5.2",
+    "fit-tool==0.9.13",
+    "playwright==1.55.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit>=3.5.0",
+    "ruff>=0.14.3",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+
+[tool.ruff.lint]
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # unused imports in __init__.py
+
+[tool.ruff.lint.isort]
+known-first-party = ["mywhoosh2garmin"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
