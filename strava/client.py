@@ -11,11 +11,11 @@ import sqlite3
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 from urllib.parse import parse_qs, urlparse
 
 import requests
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from requests import Session
 
@@ -25,18 +25,48 @@ logger = logging.getLogger(__name__)
 class StravaSettings(BaseSettings):
     """Configuration settings for Strava API client."""
 
-    client_id: str = Field(..., validation_alias="CLIENT_ID")
-    client_secret: str = Field(..., validation_alias="CLIENT_SECRET")
+    client_id: str | None = Field(
+        default=None,
+        description="Strava API Client ID necessary to generate access tokens.",
+    )
+    client_secret: SecretStr | None = Field(
+        default=None,
+        description="Strava API Client Secret necessary to generate access tokens.",
+    )
+    token_type: str = Field(
+        default="Bearer",
+    )
+    access_token: SecretStr
+    expires_at: int
+    expires_in: int
+    refresh_token: SecretStr
     token_url: str = "https://www.strava.com/oauth/token"
     auth_base_url: str = "https://www.strava.com/oauth/authorize"
-    token_file: str = "strava_tokens.json"
-    cookie_file: str = "cookie.json"
+    token_file: Path = Path(__file__).parent.parent / "strava_tokens.json"
+    cookie_file: Path = Path(__file__).parent.parent / "cookie.json"
     activities_url: str = "https://www.strava.com/api/v3/athlete/activities"
-    database_file: str = "strava.db"
+    database_file: Path = Path(__file__).parent.parent / "strava.db"
 
     model_config = SettingsConfigDict(
-        env_file=Path(__file__).parent.parent / ".env", extra="ignore"
+        env_file=Path(__file__).parent.parent / ".env",
+        extra="ignore",
+        env_prefix="STRAVA_",
     )  # noqa: E501
+
+    def model_post_init(self, __context: Any) -> None:
+        """Create necessary files if they don't exist."""
+        # Create token file if it doesn't exist
+        token_path = self.token_file
+        # Only dump selected fields to token file if it doesn't exist
+        if not token_path.exists():
+            token_data = {
+                "token_type": self.token_type,
+                "access_token": str(self.access_token.get_secret_value()),
+                "expires_at": self.expires_at,
+                "expires_in": self.expires_in,
+                "refresh_token": str(self.refresh_token.get_secret_value()),
+            }
+            token_path.write_text(json.dumps(token_data))
 
 
 class TokenData(BaseModel):
@@ -170,7 +200,7 @@ class StravaAuth:
             self.settings.token_url,
             data={
                 "client_id": self.settings.client_id,
-                "client_secret": self.settings.client_secret,
+                "client_secret": str(self.settings.client_secret.get_secret_value()),
                 "code": code[0],
                 "grant_type": "authorization_code",
             },
@@ -203,7 +233,7 @@ class StravaAuth:
             self.settings.token_url,
             data={
                 "client_id": self.settings.client_id,
-                "client_secret": self.settings.client_secret,
+                "client_secret": str(self.settings.client_secret.get_secret_value()),
                 "grant_type": "refresh_token",
                 "refresh_token": self.token_data.refresh_token,
             },
@@ -279,9 +309,7 @@ class ActivityDownloader:
         activity_name = activity_data.get("name", f"activity_{activity_id}")
         # Parse and trim start_date to only date part (YYYY-MM-DD)
         start_date_str = activity_data.get("start_date", "unknown_date")
-        start_date = (
-            start_date_str.split("T")[0] if "T" in start_date_str else start_date_str
-        )
+        _ = start_date_str.split("T")[0] if "T" in start_date_str else start_date_str
 
         # 2. Fetch time-series streams
         stream_types = [
