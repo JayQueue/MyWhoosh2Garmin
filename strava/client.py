@@ -64,7 +64,7 @@ class StravaSettings(BaseSettings):
         # Create token file if it doesn't exist
         token_path = self.token_file
         # Only dump selected fields to token file if it doesn't exist
-        if not token_path.exists():
+        if not token_path.exists() and self.access_token and self.refresh_token:
             token_data = {
                 "token_type": self.token_type,
                 "access_token": str(self.access_token.get_secret_value()),

@@ -10,6 +10,7 @@ Usage:
 """
 
 import logging
+from pathlib import Path
 
 import garth
 
@@ -28,7 +29,37 @@ def main():
     print("=" * 70)
     print()
 
-    # Load settings from .env or prompt for credentials
+    # Prompt for Garmin credentials
+    username = input("Enter your Garmin Connect Username (Email): ").strip()
+    password = input("Enter your Garmin Connect Password: ").strip()
+
+    if not username or not password:
+        logger.error("❌ Username and Password are required!")
+        return
+
+    # Create/update .env file with credentials
+    env_file = Path(__file__).parent / ".env"
+    env_content = {}
+    if env_file.exists():
+        with open(env_file, "r") as f:
+            for line in f:
+                line = line.strip()
+                if line and not line.startswith("#") and "=" in line:
+                    key, value = line.split("=", 1)
+                    env_content[key.strip()] = value.strip("\"'")
+
+    env_content["GARMIN_USERNAME"] = username
+    env_content["GARMIN_PASSWORD"] = password
+
+    with open(env_file, "w") as f:
+        for key, value in env_content.items():
+            f.write(f'{key}="{value}"\n')
+
+    print()
+    print("🔐 Starting authentication...")
+    print()
+
+    # Load settings from .env
     settings = GarminSettings()
 
     # Authenticate and save tokens
@@ -43,13 +74,20 @@ def main():
     print("=" * 70)
     print()
     print("📋 Copy the following token string and save it as a GitHub Secret:")
-    print("   Secret name: GARMIN_TOKENS")
+    print("   This is the recommended way to authenticate in CI/CD environments.")
     print()
     print("-" * 70)
+    print("Secret: GARMIN_TOKENS")
     print(token_string)
     print("-" * 70)
     print()
-    print("⚠️  IMPORTANT: Keep this token secure! Don't share it publicly.")
+    print("Alternatively, you can use your username and password as secrets:")
+    print("Secret: GARMIN_USERNAME")
+    print(f"Value:  {username}")
+    print("Secret: GARMIN_PASSWORD")
+    print(f"Value:  {password}")
+    print()
+    print("⚠️  IMPORTANT: Keep these tokens and credentials secure!")
     print()
     print("🔗 Add it to GitHub:")
     print("   1. Go to your repository → Settings → Secrets and variables → Actions")
