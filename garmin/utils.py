@@ -29,7 +29,7 @@ class GarminSettings(BaseSettings):
     garmin_tokens_path: Path = Field(
         default=Path(__file__).parent.parent / ".garth",
     )
-    garmin_tokens: str = Field(
+    garmin_tokens: SecretStr | None = Field(
         default=None,
         alias="GARMIN_TOKENS",
         description="Garmin Connect tokens from garth client.dumps() for authentication.",  # noqa: E501
