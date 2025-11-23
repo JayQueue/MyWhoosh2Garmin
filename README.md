@@ -1,203 +1,228 @@
-<h1 align="center" id="title">myWhoosh2Garmin</h1>
+# MyWhoosh2Garmin
 
-<h2>🧐Features</h2>
+> **Automated Strava-to-Garmin Sync for MyWhoosh Activities**
+>
+> Zero manual steps. Just ride, and your training effect appears on Garmin Connect automatically.
 
-*   Finds the .fit files from your MyWhoosh installation.
-*   Fix the missing power & heart rate averages.
-*   Removes the temperature.
-*   Create a backup file to a folder you select.
-*   Uploads the fixed .fit file to Garmin Connect.
+## 🎯 What This Does
 
-<h2>🛠️ Installation Steps:</h2>
+This project automatically syncs your MyWhoosh virtual cycling activities from Strava to Garmin Connect as `.fit` files, ensuring they're recognized as Garmin device uploads. This is crucial for having your **training effect** properly reflected in your **Garmin Training Readiness** and **Preparation Score**.
 
-<p>1. Download myWhoosh2Garmin.py to your filesystem to a folder or your choosing.</p>
+### The Problem This Solves
 
-<p>2. Go to the folder where you downloaded the script in a shell.</p>
+The original [forked project](https://github.com/OriginalRepo/MyWhoosh2Garmin) required multiple manual steps:
+- 📁 Manually downloading `.fit` files from MyWhoosh website
+- 🔧 Applying transformations to fix power/heart rate averages
+- 🌡️ Removing temperature data
+- 📤 Manually uploading to Garmin Connect
 
-- <b>MacOS:</b> Terminal of your choice. 
-- <b>Windows:</b> Start > Run > cmd or Start > Run > powershell
+**This was tedious and error-prone.** Big training sessions weren't impacting training preparation scores because manual uploads were missed.
 
-<p>3. Install `pipenv` (if not already installed):</p>
+### The Solution
 
-```
-pip3 install pipenv
-or
-pip install pipenv
-```
-<p>4. Install dependencies in a virtual envioronment:</p>
+This fully automated workflow:
+- ✅ **Zero manual steps** — runs completely in the cloud via GitHub Actions
+- ✅ **Automatic detection** — finds new MyWhoosh activities on Strava
+- ✅ **Smart filtering** — only uploads activities not already on Garmin Connect
+- ✅ **Training effect preserved** — `.fit` files recognized as Garmin device uploads
+- ✅ **Webhook support** — optional instant sync when you upload to Strava
 
-```
-pipenv install
-```
+## 🏗️ Architecture
 
-<p>5. Activate the virtual environment:</p>
-
-```
-pipenv shell
-```
-
-<p>5. Run the script:</p>
-
-```
-python3 myWhoosh2Garmin.py
-or
-python myWhoosh2Garmin.py
-```
-  
-<p>6. Choose your backup folder.</p>
-
-<h3>MacOS</h3>
-
-![image](https://github.com/user-attachments/assets/2c6c1072-bacf-4f0c-8861-78f62bf51648)
-
-
-<h3>Windows</h3>
-
-
-![image](https://github.com/user-attachments/assets/d1540291-4e6d-488e-9dcf-8d7b68651103)
-
-<p>7. Enter your Garmin Connect credentials</p>
-
-```
-2024-11-21 10:08:04,014 No existing session. Please log in.
-Username: <YOUR_EMAIL>
-Password:
-2024-11-21 10:08:33,545 Authenticating...
-
-2024-11-21 10:08:37,107 Successfully authenticated!
+```mermaid
+graph LR
+    A[MyWhoosh App] -->|Auto-upload| B[Strava]
+    B -->|Webhook trigger| C{GitHub Actions}
+    C -->|If Created & Virtual Ride: Fetch activity via API| D[Strava Client]
+    D -->|Download .fit data| E[FIT Builder]
+    E -->|Convert to Garmin .fit| F[Garmin Client]
+    F -->|Upload as device| G[Garmin Connect]
 ```
 
-<p>8. Run the script when you're done riding or running.</p>
+### Key Components Reused
 
-```
-2024-11-21 10:08:37,107 Checking for .fit files in directory: <YOUR_MYWHOOSH_DIR_WITH_FITFILES>.
-2024-11-21 10:08:37,107 Found the most recent .fit file: MyNewActivity-3.8.5.fit.
-2024-11-21 10:08:37,107 Cleaning up <YOUR_BACKUP_FOLDER>yNewActivity-3.8.5_2024-11-21_100837.fit.
-2024-11-21 10:08:37,855 Cleaned-up file saved as <YOUR_BACKUP_FOLDER>MyNewActivity-3.8.5_2024-11-21_100837.fit
-2024-11-21 10:08:37,871 Successfully cleaned MyNewActivity-3.8.5.fit and saved it as MyNewActivity-3.8.5_2024-11-21_100837.fit.
-2024-11-21 10:08:38,408 Duplicate activity found on Garmin Connect.
-```
+- **Garmin Client** ([garth](https://github.com/matin/garth)) — handles authentication and upload
+- **FIT Builder** ([fit_tool](https://bitbucket.org/stagescycling/fit_tool/src/main/)) — converts Strava JSON to Garmin-compatible `.fit`
+- **Strava API** — OAuth2 authentication and activity download
 
-<p>(9. Or see below to automate the process)</p>
+## 🚀 Quick Start
 
-<h2>ℹ️ Automation tips</h2> 
+> **📖 For detailed step-by-step instructions, see [SETUP.md](SETUP.md)**
 
-What if you want to automate the whole process:
-<h3>MacOS</h3>
+### Prerequisites
 
-PowerShell on MacOS (Verified & works)
+- **GitHub account** (for running GitHub Actions)
+- **Strava account** with MyWhoosh activities auto-uploaded
+- **Garmin Connect account**
+- **Strava API application** ([create one here](https://www.strava.com/settings/api))
 
-You need Powershell
+### 1️⃣ Repository Setup
 
-```shell
-brew install powershell/tap/powershell
-```
+1. **Fork this repository** or clone it to your GitHub account
+2. **Enable GitHub Actions** in your repository settings
 
-```powershell
-# Define the JSON config file path
-$configFile = "$PSScriptRoot\mywhoosh_config.json"
-$myWhooshApp = "myWhoosh Indoor Cycling App.app"
+### 2️⃣ Authentication Setup
 
-# Check if the JSON file exists and read the stored path
-if (Test-Path $configFile) {
-    $config = Get-Content -Path $configFile | ConvertFrom-Json
-    $mywhooshPath = $config.path
-} else {
-    $mywhooshPath = $null
-}
+#### Garmin Authentication
 
-# Validate the stored path
-if (-not $mywhooshPath -or -not (Test-Path $mywhooshPath)) {
-    Write-Host "Searching for $myWhooshApp"
-    $mywhooshPath = Get-ChildItem -Path "/Applications" -Filter $myWhooshApp -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+Run the Garmin setup script locally to authenticate and generate tokens:
 
-    if (-not $mywhooshPath) {
-        Write-Host " not found!"
-        exit 1
-    }
+```bash
+# Clone the repo
+git clone https://github.com/YourUsername/MyWhoosh2Garmin.git
+cd MyWhoosh2Garmin
 
-    $mywhooshPath = $mywhooshPath.FullName
+# Install dependencies
+pip install uv
+uv venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+uv pip install -r pyproject.toml
 
-    # Store the path in the JSON file
-    $config = @{ path = $mywhooshPath }
-    $config | ConvertTo-Json | Set-Content -Path $configFile
-}
-
-Write-Host "Found $myWhooshApp at $mywhooshPath"
-
-Start-Process -FilePath $mywhooshPath
-
-# Wait for the application to finish
-Write-Host "Waiting for $myWhooshApp to finish..."
-while ($process = ps -ax | grep -i $myWhooshApp | grep -v "grep") {
-    Write-Output $process
-    Start-Sleep -Seconds 5
-}
-
-# Run the Python script
-Write-Host "$myWhooshApp has finished, running Python script..."
-python3 "<PATH_WHERE_YOUR_SCRIPT_IS_LOCATED>/MyWhoosh2Garmin/myWhoosh2Garmin.py"
+# Run Garmin authentication
+python garmin/utils.py
 ```
 
-AppleScript (need to test further)
+You'll be prompted for:
+- Garmin username (email)
+- Garmin password
+- **2FA code** (if enabled)
 
-```applescript
-TODO: needs more work
+The script will output a `GARMIN_TOKENS` string — **save this securely!**
+
+#### Strava Authentication
+
+Run the Strava setup script to initialize OAuth tokens:
+
+```bash
+python strava/client.py
 ```
 
-<h3>Windows</h3>
+Follow the prompts:
+1. Click the authorization URL that appears
+2. Authorize the application
+3. Copy the callback URL from your browser
+4. Paste it back into the terminal
 
-Windows .ps1 (PowerShell) file (Untested on Windows)
-```powershell
-# Define the JSON config file path
-$configFile = "$PSScriptRoot\mywhoosh_config.json"
+This creates `strava_tokens.json` with your access/refresh tokens.
 
-# Check if the JSON file exists and read the stored path
-if (Test-Path $configFile) {
-    $config = Get-Content -Path $configFile | ConvertFrom-Json
-    $mywhooshPath = $config.path
-} else {
-    $mywhooshPath = $null
-}
+### 3️⃣ Configure GitHub Secrets
 
-# Validate the stored path
-if (-not $mywhooshPath -or -not (Test-Path $mywhooshPath)) {
-    Write-Host "Searching for mywhoosh.exe..."
-    $mywhooshPath = Get-ChildItem -Path "C:\PROGRAM FILES" -Filter "mywhoosh.exe" -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+Go to your repository → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
 
-    if (-not $mywhooshPath) {
-        Write-Host "mywhoosh.exe not found!"
-        exit 1
-    }
+Add the following secrets:
 
-    $mywhooshPath = $mywhooshPath.FullName
+| Secret Name | Description | Where to Find |
+|-------------|-------------|---------------|
+| `STRAVA_CLIENT_ID` | Your Strava API application ID | [Strava API Settings](https://www.strava.com/settings/api) |
+| `STRAVA_CLIENT_SECRET` | Your Strava API secret | [Strava API Settings](https://www.strava.com/settings/api) |
+| `STRAVA_ACCESS_TOKEN` | OAuth access token | From `strava_tokens.json` after setup |
+| `STRAVA_EXPIRES_AT` | Token expiration timestamp | From `strava_tokens.json` |
+| `STRAVA_EXPIRES_IN` | Token expiration duration | From `strava_tokens.json` |
+| `STRAVA_REFRESH_TOKEN` | OAuth refresh token | From `strava_tokens.json` |
+| `GARMIN_TOKENS` | Garmin authentication tokens | From `garmin/utils.py` output |
 
-    # Store the path in the JSON file
-    $config = @{ path = $mywhooshPath }
-    $config | ConvertTo-Json | Set-Content -Path $configFile
-}
+### 4️⃣ Run the Workflow
 
-Write-Host "Found mywhoosh.exe at $mywhooshPath"
+#### Manual Trigger
 
-# Start mywhoosh.exe
-Start-Process -FilePath $mywhooshPath
+Go to **Actions** → **Self-hosted runner — Run MyWhoosh2Garmin** → **Run workflow**
 
-# Wait for the application to finish
-Write-Host "Waiting for mywhoosh to finish..."
-while (Get-Process -Name "mywhoosh" -ErrorAction SilentlyContinue) {
-    Start-Sleep -Seconds 5
-}
+That's it! The workflow will:
+1. Fetch your last 7 days of Garmin virtual cycling activities
+2. Check Strava for MyWhoosh activities
+3. Download new activities not on Garmin
+4. Convert to `.fit` format
+5. Upload to Garmin Connect
 
-# Run the Python script
-Write-Host "mywhoosh has finished, running Python script..."
-python "C:\Path\to\myWhoosh2Garmin.py"
+#### Automatic Webhook Trigger (Optional)
+
+For **instant sync** after every Strava upload, set up a webhook using my [WebhookProcessor](https://github.com/MarcChen/WebhookProcessor):
+
+1. Deploy the WebhookProcessor to handle Strava webhook events
+2. Configure it to trigger your GitHub Actions workflow
+3. Register the webhook URL with Strava
+
+Now every MyWhoosh activity uploaded to Strava will automatically sync to Garmin within minutes! ⚡
+
+## 📋 Environment Variables
+
+The following environment variables are required for the complete workflow:
+
+```bash
+# Strava OAuth credentials
+STRAVA_CLIENT_ID="12345"
+STRAVA_CLIENT_SECRET="your_strava_client_secret"
+STRAVA_ACCESS_TOKEN="your_strava_access_token"
+STRAVA_EXPIRES_AT="1234567890"
+STRAVA_EXPIRES_IN="21600"
+STRAVA_REFRESH_TOKEN="your_strava_refresh_token"
+
+# Garmin authentication (from garth client)
+GARMIN_TOKENS="your_garmin_tokens_string"
 ```
 
-<h2>💻 Built with</h2>
+> **Note:** For local development, copy `.env-template` to `.env` and fill in your values.
 
-Technologies used in the project:
+## 🛠️ How It Works
 
-* Neovim
-*   <a href="https://github.com/matin/garth">Garth</a>
-*   tKinter
-*   <a href="https://bitbucket.org/stagescycling/fit_tool/src/main/">Fit\_tool</a>
+### Workflow Steps
+
+1. **Authentication**
+   - Garmin: Uses pre-authenticated tokens from `GARMIN_TOKENS`
+   - Strava: Uses OAuth2 with automatic token refresh
+
+2. **Activity Discovery**
+   - Fetches last 7 days of virtual cycling activities from Garmin Connect
+   - Fetches recent MyWhoosh activities from Strava (filtered by name containing "MyWhoosh")
+
+3. **Smart Filtering**
+   - Compares Strava and Garmin activities by start time
+   - Only processes activities not already on Garmin
+
+4. **Data Conversion**
+   - Downloads Strava activity data (metadata + streams: power, heart rate, cadence, etc.)
+   - Builds Garmin-compatible `.fit` file using `fit_tool`
+
+5. **Upload**
+   - Uploads `.fit` file to Garmin Connect using `garth` client
+   - File is recognized as a Garmin device upload (triggers training effect)
+
+### Database Tracking
+
+The workflow uses SQLite (`strava.db`) to track downloaded activities and prevent duplicate processing.
+
+## 🔒 Security Notes
+
+- ⚠️ **Never commit** `.env` or token files to version control
+- 🔐 Store all credentials as **GitHub Secrets**
+- 🔄 Tokens are automatically refreshed when expired
+- 🗑️ Processed `.fit` files are deleted after upload
+
+## 📦 Dependencies
+
+- **Python 3.13+**
+- **uv** (package manager)
+- Key libraries:
+  - `garth` — Garmin Connect API client
+  - `pydantic` / `pydantic-settings` — configuration management
+  - `requests` — HTTP client
+  - `fit_tool` — FIT file manipulation
+
+## 🤝 Contributing
+
+Feel free to open issues or pull requests! This project is a personal automation tool, but improvements are welcome.
+
+## 📄 License
+
+[GPL-3.0 License](LICENSE)
+
+## 🙏 Acknowledgments
+
+- Original inspiration from [MyWhoosh2Garmin](https://github.com/OriginalRepo/MyWhoosh2Garmin)
+- [matin/garth](https://github.com/matin/garth) for excellent Garmin API client
+- [fit_tool](https://bitbucket.org/stagescycling/fit_tool/src/main/) for FIT file utilities
+- Strava API for activity data access
+
+---
+
+**Made with ❤️ for cyclists who want their training data to just work.**

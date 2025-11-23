@@ -25,21 +25,27 @@ logger = logging.getLogger(__name__)
 class StravaSettings(BaseSettings):
     """Configuration settings for Strava API client."""
 
-    client_id: str | None = Field(
-        default=None,
-        description="Strava API Client ID necessary to generate access tokens.",
-    )
-    client_secret: SecretStr | None = Field(
-        default=None,
-        description="Strava API Client Secret necessary to generate access tokens.",
-    )
+    client_id: str
+    client_secret: SecretStr
     token_type: str = Field(
         default="Bearer",
     )
-    access_token: SecretStr
-    expires_at: int
-    expires_in: int
-    refresh_token: SecretStr
+    access_token: SecretStr | None = Field(
+        default=None,
+        description="Strava API Access Token.",
+    )
+    expires_at: int | None = Field(
+        default=None,
+        description="Strava API Access Token Expiration Time.",
+    )
+    expires_in: int | None = Field(
+        default=None,
+        description="Strava API Access Token Expiration Time.",
+    )
+    refresh_token: SecretStr | None = Field(
+        default=None,
+        description="Strava API Refresh Token.",
+    )
     token_url: str = "https://www.strava.com/oauth/token"
     auth_base_url: str = "https://www.strava.com/oauth/authorize"
     token_file: Path = Path(__file__).parent.parent / "strava_tokens.json"
