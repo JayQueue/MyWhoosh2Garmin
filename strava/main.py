@@ -61,6 +61,7 @@ class ActivityDatabase:
     """Database handler for tracking downloaded activities."""
     
     def __init__(self, db_file: str):
+        self.db_file = db_file
         self.conn = sqlite3.connect(db_file)
         self._create_table()
 
@@ -93,7 +94,16 @@ class ActivityDatabase:
 
     def close(self):
         """Close database connection."""
-        self.conn.close()
+        if self.conn:
+            self.conn.close()
+    
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        """Context manager exit."""
+        self.close()
 
 
 class StravaAuth:
@@ -239,19 +249,32 @@ class ActivityDownloader:
         "Upgrade-Insecure-Requests": "1"
     }
 
-    def __init__(self, session: Session, database: ActivityDatabase):
+    def __init__(
+        self, 
+        session: Session, 
+        database: ActivityDatabase,
+        auth: Optional["StravaAuth"] = None
+    ):
         self.session = session
         self.db = database
+        self.auth = auth
 
     def download_activity(self, activity_id: int) -> bool:
         """Download activity file with retry logic."""
         try:
             return self._download_attempt(activity_id)
         except requests.HTTPError as e:
-            if e.response.status_code == 401:
+            if e.response.status_code == 401 and self.auth:
                 print("Token expired during download, refreshing...")
-                self.session.auth.refresh_token()
-                return self._download_attempt(activity_id)
+                try:
+                    self.auth.refresh_token()
+                    return self._download_attempt(activity_id)
+                except requests.HTTPError as refresh_error:
+                    if refresh_error.response.status_code == 400:
+                        print("Refresh token expired, re-authenticating...")
+                        self.auth._perform_oauth_flow()
+                        return self._download_attempt(activity_id)
+                    raise
             raise
 
     def _download_attempt(self, activity_id: int) -> bool:
@@ -332,13 +355,15 @@ class StravaClientBuilder:
         """Build configured StravaClient instance."""
         downloader = ActivityDownloader(
             self.auth.session,
-            self.database
+            self.database,
+            self.auth
         )
         return StravaClient(self.auth, downloader)
 
-    def __del__(self):
-        """Cleanup resources on deletion."""
-        self.database.close()
+    def cleanup(self):
+        """Cleanup resources."""
+        if hasattr(self, 'database') and self.database:
+            self.database.close()
 
 
 if __name__ == "__main__":
@@ -355,7 +380,7 @@ if __name__ == "__main__":
 
         if not new_activities:
             print("No new activities found")
-            exit()
+            exit(0)
 
         print("\n🏆 New Virtual Rides with 'MyWhoosh' in name:")
         for activity in new_activities:
@@ -372,8 +397,12 @@ if __name__ == "__main__":
         print(f"• Already existed: {len(all_activities) - len(new_activities)}")
         print(f"• Total processed: {len(all_activities)}")
 
+    except KeyboardInterrupt:
+        print("\n⚠️  Interrupted by user")
+        exit(1)
     except Exception as e:
         print(f"❌ Error: {str(e)}")
+        exit(1)
     finally:
         if client_builder:
-            client_builder.database.close()
+            client_builder.cleanup()

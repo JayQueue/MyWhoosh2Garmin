@@ -7,5 +7,9 @@ name = "pypi"
 garth = "0.5.2"
 fit_tool = "0.9.13"
 
+[dev-packages]
+pytest = "*"
+pytest-cov = "*"
+
 [requires]
 python_version = "3.13"

@@ -2,3 +2,5 @@
 *.log
 *.json
 *.lock
+# Ignore Python bytecode directories
+__pycache__/
