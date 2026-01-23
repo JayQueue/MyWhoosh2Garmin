@@ -8,6 +8,7 @@ from garmin.utils import (
     upload_fit_file_to_garmin,
 )
 from strava.client import StravaClientBuilder
+from strava.utils import sanitize_filename
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 log_file_path = SCRIPT_DIR / "myWhoosh2Garmin.log"
@@ -46,9 +47,10 @@ def main():
 
     for activity in new_activities:
         client.downloader.download_activity(activity.id)
-        file_name = f"{activity.name}.json"
+        safe_name = sanitize_filename(activity.name)
+        file_name = f"{safe_name}.json"
         input_path = RAW_FIT_FILE_PATH / file_name
-        output_path = RAW_FIT_FILE_PATH.parent / "processed" / f"{activity.name}.fit"
+        output_path = RAW_FIT_FILE_PATH.parent / "processed" / f"{safe_name}.fit"
         builder = MyWhooshFitBuilder(input_path)
         builder.build(output_path)
         upload_fit_file_to_garmin(output_path)
