@@ -1,0 +1,50 @@
+name: Self-hosted runner — Run MyWhoosh2Garmin
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  run-on-self-hosted:
+    name: Run on self-hosted runner
+    runs-on: [self-hosted]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+
+      - name: Ensure `uv` CLI available (or install fallback)
+        shell: bash
+        run: |
+          set -euo pipefail
+          if command -v uv >/dev/null 2>&1; then
+            uv --version
+            echo "uv found: $(command -v uv)"
+          else
+            echo "uv not found; installing via curl"
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+          fi
+
+      - name: Create virtual environment
+        shell: bash
+        run: |
+          uv venv --python 3.13
+
+      - name: Install project (from pyproject.toml)
+        shell: bash
+        run: |
+          uv pip install -r pyproject.toml
+
+      - name: Run myWhoosh2Garmin.py
+        shell: bash
+        env:
+          STRAVA_CLIENT_ID: ${{ secrets.STRAVA_CLIENT_ID }}
+          STRAVA_CLIENT_SECRET: ${{ secrets.STRAVA_CLIENT_SECRET }}
+          STRAVA_ACCESS_TOKEN: ${{ secrets.STRAVA_ACCESS_TOKEN }}
+          STRAVA_EXPIRES_AT: ${{ secrets.STRAVA_EXPIRES_AT }}
+          STRAVA_EXPIRES_IN: ${{ secrets.STRAVA_EXPIRES_IN }}
+          STRAVA_REFRESH_TOKEN: ${{ secrets.STRAVA_REFRESH_TOKEN }}
+          GARMIN_TOKENS: ${{ secrets.GARMIN_TOKENS }}
+        run: |
+          set -euo pipefail
+          source .venv/bin/activate
+          python myWhoosh2Garmin.py

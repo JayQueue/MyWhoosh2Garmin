@@ -1,197 +1,62 @@
-#!/usr/bin/env python3
-"""
-Script name: myWhoosh2Garmin.py
-Usage: "python3 myWhoosh2Garmin.py"
-Description:    Checks for MyNewActivity-<myWhooshVersion>.fit
-                Adds avg power and heartrade
-                Removes temperature
-                Creates backup for the file with a timestamp as a suffix
-Credits:        Garth by matin - for authenticating and uploading with 
-                Garmin Connect.
-                https://github.com/matin/garth
-                Fit_tool by mtucker - for parsing the fit file.
-                https://bitbucket.org/stagescycling/python_fit_tool.git/src
-                mw2gc by embeddedc - used as an example to fix the avg's. 
-                https://github.com/embeddedc/mw2gc
-"""
-import os
-import json
-import subprocess
-import sys
 import logging
-import re
-from typing import List
-import tkinter as tk
-from tkinter import filedialog
-from datetime import datetime
-from getpass import getpass
 from pathlib import Path
-import importlib.util
 
+from fit_utils.fit_builder import MyWhooshFitBuilder
+from garmin.utils import (
+    authenticate_to_garmin,
+    list_virtual_cycling_activities,
+    upload_fit_file_to_garmin,
+)
+from strava.client import StravaClientBuilder
+from strava.utils import sanitize_filename
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 log_file_path = SCRIPT_DIR / "myWhoosh2Garmin.log"
-json_file_path = SCRIPT_DIR /  "backup_path.json"
+RAW_FIT_FILE_PATH = SCRIPT_DIR / "data" / "raw"
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 file_handler = logging.FileHandler(log_file_path)
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
 file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
 
-INSTALLED_PACKAGES_FILE = SCRIPT_DIR / "installed_packages.json"
+def main():
+    authenticate_to_garmin()
+    client_builder = StravaClientBuilder()
+    client = client_builder.with_auth().with_cookies().build()
 
+    strava_retrieved_activities = client.get_filtered_activities()
+    names, start_times = list_virtual_cycling_activities(last_n_days=7)
 
-def load_installed_packages():
-    """Load the set of installed packages from a JSON file."""
-    if INSTALLED_PACKAGES_FILE.exists():
-        with INSTALLED_PACKAGES_FILE.open("r") as f:
-            return set(json.load(f))
-    return set()
+    def strip_timezone(dt):
+        if dt.tzinfo is not None:
+            return dt.replace(tzinfo=None)
+        return dt
 
+    start_times_no_tz = {strip_timezone(dt) for dt in start_times}
 
-def save_installed_packages(installed_packages):
-    """Save the set of installed packages to a JSON file."""
-    with INSTALLED_PACKAGES_FILE.open("w") as f:
-        json.dump(list(installed_packages), f)
-
-
-def get_pip_command():
-    """Return the pip command if pip is available."""
-    try:
-        subprocess.check_call(
-            [sys.executable, "-m", "pip", "--version"],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE
-        )
-        return [sys.executable, "-m", "pip"]
-    except subprocess.CalledProcessError:
-        return None
-
-
-def install_package(package):
-    """Install the specified package using pip."""
-    pip_command = get_pip_command()
-    if pip_command:
-        try:
-            logger.info(f"Installing missing package: {package}.")
-            subprocess.check_call(
-                pip_command + ["install", package]
-            )
-        except subprocess.CalledProcessError as e:
-            logger.error(f"Error installing {package}: {e}.")
-    else:
-        logger.debug("pip is not available. Unable to install packages.")
-
-
-def ensure_packages():
-    """Ensure all required packages are installed and tracked."""
-    required_packages = ["garth", "fit_tool"]
-    installed_packages = load_installed_packages()
-
-    for package in required_packages:
-        if package in installed_packages:
-            logger.info(f"Package {package} is already tracked as installed.")
-            continue
-
-        if not importlib.util.find_spec(package):
-            logger.info(f"Package {package} not found."
-                        "Attempting to install...")
-            install_package(package)
-
-        try:
-            __import__(package)
-            logger.info(f"Successfully imported {package}.")
-            installed_packages.add(package)
-        except ModuleNotFoundError:
-            logger.error(f"Failed to import {package} even "
-                         "after installation.")
-
-    save_installed_packages(installed_packages)
-
-
-ensure_packages()
-
-
-# Imports
-try:
-    import garth
-    from garth.exc import GarthException, GarthHTTPError
-    from fit_tool.fit_file import FitFile
-    from fit_tool.fit_file_builder import FitFileBuilder
-    from fit_tool.profile.messages.file_creator_message import (
-        FileCreatorMessage
+    new_activities = [
+        activity
+        for activity in strava_retrieved_activities
+        if strip_timezone(activity.start_date_local) not in start_times_no_tz
+    ]
+    logger.info(
+        f"Found {len(new_activities)} new virtual cycling activities to upload to Garmin."  # noqa: E501
     )
-    from fit_tool.profile.messages.record_message import (
-        RecordMessage,
-        RecordTemperatureField
-    )
-    from fit_tool.profile.messages.session_message import SessionMessage
-    from fit_tool.profile.messages.lap_message import LapMessage
-except ImportError as e:
-    logger.error(f"Error importing modules: {e}")
 
-
-TOKENS_PATH = SCRIPT_DIR / '.garth'
-FILE_DIALOG_TITLE = "MyWhoosh2Garmin"
-# Fix for https://github.com/JayQueue/MyWhoosh2Garmin/issues/2
-MYWHOOSH_PREFIX_WINDOWS = "MyWhooshTechnologyService." 
-
-
-def get_fitfile_location() -> Path:
-    """
-    Get the location of the FIT file directory based on the operating system.
-
-    Returns:
-        Path: The path to the FIT file directory.
-
-    Raises:
-        RuntimeError: If the operating system is unsupported.
-        SystemExit: If the target path does not exist.
-    """
-    if os.name == "posix":  # macOS and Linux
-        target_path = (
-           Path.home()
-           / "Library"
-           / "Containers"
-           / "com.whoosh.whooshgame"
-           / "Data"
-           / "Library"
-           / "Application Support"
-           / "Epic"
-           / "MyWhoosh"
-           / "Content"
-           / "Data"
-        )
-        if target_path.is_dir():
-            return target_path
-        else:
-            logger.error(f"Target path {target_path} does not exist. "
-                         "Check your MyWhoosh installation.")
-            sys.exit(1)
-    elif os.name == "nt":  # Windows
+    for activity in new_activities:
+        client.downloader.download_activity(activity.id)
+        safe_name = sanitize_filename(activity.name)
+        file_name = f"{safe_name}.json"
+        input_path = RAW_FIT_FILE_PATH / file_name
+        output_path = RAW_FIT_FILE_PATH.parent / "processed" / f"{safe_name}.fit"
+        builder = MyWhooshFitBuilder(input_path)
+        builder.build(output_path)
+        upload_fit_file_to_garmin(output_path)
         try:
-            base_path = Path.home() / "AppData" / "Local" / "Packages"
-            for directory in base_path.iterdir():
-                if (directory.is_dir() and 
-                        directory.name.startswith(MYWHOOSH_PREFIX_WINDOWS)):
-                    target_path = (
-                            directory
-                            / "LocalCache"
-                            / "Local"
-                            / "MyWhoosh"
-                            / "Content"
-                            / "Data"
-                )
-            if target_path.is_dir():
-                return target_path
-            else:
-                raise FileNotFoundError(f"No valid MyWhoosh directory found in {target_path}")
-        except FileNotFoundError as e:
-                logger.error(str(e))
-        except PermissionError as e:
-                logger.error(f"Permission denied: {e}")
+            output_path.unlink()
+            logger.info(f"Deleted file: {output_path}")
         except Exception as e:
                 logger.error(f"Unexpected error: {e}")
     else:
