@@ -19,6 +19,8 @@ from pydantic import BaseModel, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from requests import Session
 
+from strava.utils import sanitize_filename
+
 logger = logging.getLogger(__name__)
 
 
@@ -353,7 +355,8 @@ class ActivityDownloader:
         data_dir = Path(__file__).parent.parent / "data" / "raw"
         data_dir.mkdir(parents=True, exist_ok=True)
 
-        json_filename = data_dir / f"{activity_name}.json"
+        safe_activity_name = sanitize_filename(activity_name)
+        json_filename = data_dir / f"{safe_activity_name}.json"
         with open(json_filename, "w") as f:
             json.dump(combined_data, f, indent=2, default=str)
 
