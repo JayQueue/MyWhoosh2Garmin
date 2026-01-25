@@ -3,7 +3,7 @@
 Script name: myWhoosh2Garmin.py
 Usage: "python3 myWhoosh2Garmin.py"
 Description:    Checks for MyNewActivity-<myWhooshVersion>.fit
-                Adds avg power and heartrade
+                Adds avg power and heartrate
                 Removes temperature
                 Creates backup for the file with a timestamp as a suffix
 Credits:        Garth by matin - for authenticating and uploading with 
